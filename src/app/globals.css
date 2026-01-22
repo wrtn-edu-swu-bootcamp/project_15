@@ -1,0 +1,139 @@
+/* Pretendard 폰트 */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+@import "tailwindcss";
+
+:root {
+  /* 급수별 색상 */
+  --level-a1: #D4CAA1;
+  --level-a2: #D1BAA5;
+  --level-b1: #A4BFAA;
+  --level-b2: #7B8C8F;
+  --level-c1: #CFABAB;
+  --level-c2: #9B93A3;
+  
+  /* 브랜드 색상 - 브라운 테마 */
+  --primary: #6D5845;
+  --primary-dark: #5A4839;
+  --primary-light: #8B7355;
+  --accent: #D4A574;
+  --accent-light: #E8C9A8;
+  
+  /* 배경 & 텍스트 */
+  --background: #FFFBF7;
+  --background-warm: #FDF5ED;
+  --foreground: #3D3228;
+  --foreground-muted: #6B5B4D;
+  
+  /* 보조 색상 */
+  --border: #E5DDD4;
+  --border-dark: #C9BEB2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #2A2520;
+    --background-warm: #332D27;
+    --foreground: #F5EDE5;
+    --foreground-muted: #B8A899;
+    --border: #4A423A;
+    --border-dark: #5C524A;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+}
+
+/* 하이라이팅 스타일 */
+.highlight-a1 { background-color: var(--level-a1); }
+.highlight-a2 { background-color: var(--level-a2); }
+.highlight-b1 { background-color: var(--level-b1); }
+.highlight-b2 { background-color: var(--level-b2); }
+.highlight-c1 { background-color: var(--level-c1); }
+.highlight-c2 { background-color: var(--level-c2); }
+
+/* 사용자 추가 하이라이팅 (점선 테두리) */
+.highlight-user-added {
+  border: 2px dashed currentColor;
+  border-radius: 2px;
+}
+
+/* 호버 효과 */
+.highlight-word {
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0 2px;
+  transition: all 0.2s ease;
+}
+
+.highlight-word:hover {
+  filter: brightness(0.9);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 카드 스타일 */
+.card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(109, 88, 69, 0.06);
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 4px 16px rgba(109, 88, 69, 0.12);
+  transform: translateY(-2px);
+}
+
+/* 버튼 스타일 */
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+}
+
+/* 토글 버튼 스타일 */
+.toggle-btn {
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn.active {
+  border-color: var(--primary);
+  background: rgba(109, 88, 69, 0.1);
+  color: var(--primary);
+}
+
+/* 스크롤바 스타일 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background-warm);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-dark);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-light);
+}
