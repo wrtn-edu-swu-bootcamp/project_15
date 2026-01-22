@@ -14,6 +14,86 @@ import {
 } from '@/types';
 
 /**
+ * 텍스트 정규화: 연속 공백을 단일 공백으로, 줄바꿈 유지
+ */
+export function normalizeText(text: string): string {
+  return text
+    .replace(/\r\n/g, '\n')           // Windows 줄바꿈 정규화
+    .replace(/\r/g, '\n')             // Mac 줄바꿈 정규화
+    .replace(/[ \t]+/g, ' ')          // 연속 공백/탭을 단일 공백으로
+    .replace(/\u00A0/g, ' ')          // non-breaking space를 일반 공백으로
+    .replace(/\u200B/g, '')           // zero-width space 제거
+    .trim();
+}
+
+/**
+ * 악센트 제거 (검색용)
+ */
+export function removeAccents(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
+ * 텍스트에서 특정 문자열의 위치를 찾습니다.
+ * 1차: 정확한 매칭
+ * 2차: 대소문자 무시 매칭
+ * 3차: 악센트 제거 후 매칭
+ */
+export function findPositionFlexible(
+  content: string,
+  searchText: string,
+  usedPositions?: Set<string>
+): { position: Position | null; matchType: 'exact' | 'case-insensitive' | 'accent-insensitive' | 'not-found' } {
+  if (!searchText || searchText.length === 0) {
+    return { position: null, matchType: 'not-found' };
+  }
+
+  // 1차: 정확한 매칭
+  let index = content.indexOf(searchText);
+  if (index !== -1) {
+    const position = { start: index, end: index + searchText.length };
+    const posKey = `${position.start}-${position.end}`;
+    
+    // 중복 체크
+    if (usedPositions && usedPositions.has(posKey)) {
+      // 다음 위치 찾기
+      index = content.indexOf(searchText, index + 1);
+      if (index !== -1) {
+        return {
+          position: { start: index, end: index + searchText.length },
+          matchType: 'exact'
+        };
+      }
+    } else {
+      return { position, matchType: 'exact' };
+    }
+  }
+
+  // 2차: 대소문자 무시 매칭
+  const lowerContent = content.toLowerCase();
+  const lowerSearch = searchText.toLowerCase();
+  index = lowerContent.indexOf(lowerSearch);
+  if (index !== -1) {
+    const position = { start: index, end: index + searchText.length };
+    console.log(`[Flexible Match] "${searchText}" found via case-insensitive at ${index}`);
+    return { position, matchType: 'case-insensitive' };
+  }
+
+  // 3차: 악센트 제거 후 매칭
+  const normalizedContent = removeAccents(content.toLowerCase());
+  const normalizedSearch = removeAccents(searchText.toLowerCase());
+  index = normalizedContent.indexOf(normalizedSearch);
+  if (index !== -1) {
+    const position = { start: index, end: index + searchText.length };
+    console.log(`[Flexible Match] "${searchText}" found via accent-insensitive at ${index}`);
+    return { position, matchType: 'accent-insensitive' };
+  }
+
+  console.log(`[Match Failed] "${searchText}" not found in content`);
+  return { position: null, matchType: 'not-found' };
+}
+
+/**
  * 텍스트에서 특정 문자열의 모든 위치를 찾습니다.
  * 대소문자와 악센트를 정확히 구분합니다.
  */
@@ -30,7 +110,7 @@ export function findAllPositions(content: string, searchText: string): Position[
       end: index + searchText.length,
     });
 
-    startIndex = index + 1; // 다음 위치부터 검색 (중복 허용)
+    startIndex = index + 1;
   }
 
   return positions;
@@ -51,20 +131,51 @@ export function findFirstPosition(content: string, searchText: string): Position
 }
 
 /**
+ * 매칭 통계 타입
+ */
+export interface MatchStats {
+  total: number;
+  exact: number;
+  caseInsensitive: number;
+  accentInsensitive: number;
+  notFound: number;
+  notFoundItems: string[];
+}
+
+/**
  * 품사별 어휘를 하이라이팅용 통합 배열로 변환합니다.
  * 각 항목에 position을 계산하여 추가합니다.
+ * 유연한 매칭 적용
  */
 export function convertVocabularyToHighlightWords(
   vocabulary: VocabularyByPOS,
   content: string
-): HighlightWord[] {
+): { words: HighlightWord[]; stats: MatchStats } {
   const result: HighlightWord[] = [];
-  const usedPositions: Set<string> = new Set(); // 중복 방지
+  const usedPositions: Set<string> = new Set();
+  const stats: MatchStats = {
+    total: 0,
+    exact: 0,
+    caseInsensitive: 0,
+    accentInsensitive: 0,
+    notFound: 0,
+    notFoundItems: [],
+  };
 
   // 명사 변환
-  vocabulary.nouns.forEach((noun: NounItem) => {
-    const position = findFirstPosition(content, noun.foundForm);
-    if (position && !usedPositions.has(`${position.start}-${position.end}`)) {
+  vocabulary.nouns?.forEach((noun: NounItem) => {
+    stats.total++;
+    const { position, matchType } = findPositionFlexible(content, noun.foundForm, usedPositions);
+    
+    if (matchType === 'exact') stats.exact++;
+    else if (matchType === 'case-insensitive') stats.caseInsensitive++;
+    else if (matchType === 'accent-insensitive') stats.accentInsensitive++;
+    else {
+      stats.notFound++;
+      stats.notFoundItems.push(`noun: ${noun.foundForm}`);
+    }
+    
+    if (position) {
       usedPositions.add(`${position.start}-${position.end}`);
       result.push({
         word: noun.word,
@@ -81,9 +192,19 @@ export function convertVocabularyToHighlightWords(
   });
 
   // 동사 변환
-  vocabulary.verbs.forEach((verb: VerbItem) => {
-    const position = findFirstPosition(content, verb.foundForm);
-    if (position && !usedPositions.has(`${position.start}-${position.end}`)) {
+  vocabulary.verbs?.forEach((verb: VerbItem) => {
+    stats.total++;
+    const { position, matchType } = findPositionFlexible(content, verb.foundForm, usedPositions);
+    
+    if (matchType === 'exact') stats.exact++;
+    else if (matchType === 'case-insensitive') stats.caseInsensitive++;
+    else if (matchType === 'accent-insensitive') stats.accentInsensitive++;
+    else {
+      stats.notFound++;
+      stats.notFoundItems.push(`verb: ${verb.foundForm}`);
+    }
+    
+    if (position) {
       usedPositions.add(`${position.start}-${position.end}`);
       result.push({
         word: verb.word,
@@ -100,9 +221,19 @@ export function convertVocabularyToHighlightWords(
   });
 
   // 형용사 변환
-  vocabulary.adjectives.forEach((adj: AdjectiveItem) => {
-    const position = findFirstPosition(content, adj.foundForm);
-    if (position && !usedPositions.has(`${position.start}-${position.end}`)) {
+  vocabulary.adjectives?.forEach((adj: AdjectiveItem) => {
+    stats.total++;
+    const { position, matchType } = findPositionFlexible(content, adj.foundForm, usedPositions);
+    
+    if (matchType === 'exact') stats.exact++;
+    else if (matchType === 'case-insensitive') stats.caseInsensitive++;
+    else if (matchType === 'accent-insensitive') stats.accentInsensitive++;
+    else {
+      stats.notFound++;
+      stats.notFoundItems.push(`adj: ${adj.foundForm}`);
+    }
+    
+    if (position) {
       usedPositions.add(`${position.start}-${position.end}`);
       result.push({
         word: adj.word,
@@ -118,9 +249,19 @@ export function convertVocabularyToHighlightWords(
   });
 
   // 부사 변환
-  vocabulary.adverbs.forEach((adv: AdverbItem) => {
-    const position = findFirstPosition(content, adv.foundForm);
-    if (position && !usedPositions.has(`${position.start}-${position.end}`)) {
+  vocabulary.adverbs?.forEach((adv: AdverbItem) => {
+    stats.total++;
+    const { position, matchType } = findPositionFlexible(content, adv.foundForm, usedPositions);
+    
+    if (matchType === 'exact') stats.exact++;
+    else if (matchType === 'case-insensitive') stats.caseInsensitive++;
+    else if (matchType === 'accent-insensitive') stats.accentInsensitive++;
+    else {
+      stats.notFound++;
+      stats.notFoundItems.push(`adv: ${adv.foundForm}`);
+    }
+    
+    if (position) {
       usedPositions.add(`${position.start}-${position.end}`);
       result.push({
         word: adv.word,
@@ -136,9 +277,19 @@ export function convertVocabularyToHighlightWords(
   });
 
   // 기타 품사 변환
-  vocabulary.others.forEach((other: OtherItem) => {
-    const position = findFirstPosition(content, other.foundForm);
-    if (position && !usedPositions.has(`${position.start}-${position.end}`)) {
+  vocabulary.others?.forEach((other: OtherItem) => {
+    stats.total++;
+    const { position, matchType } = findPositionFlexible(content, other.foundForm, usedPositions);
+    
+    if (matchType === 'exact') stats.exact++;
+    else if (matchType === 'case-insensitive') stats.caseInsensitive++;
+    else if (matchType === 'accent-insensitive') stats.accentInsensitive++;
+    else {
+      stats.notFound++;
+      stats.notFoundItems.push(`other: ${other.foundForm}`);
+    }
+    
+    if (position) {
       usedPositions.add(`${position.start}-${position.end}`);
       result.push({
         word: other.word,
@@ -153,7 +304,16 @@ export function convertVocabularyToHighlightWords(
     }
   });
 
-  return result;
+  // 위치 순으로 정렬
+  result.sort((a, b) => a.position.start - b.position.start);
+
+  console.log('=== Vocabulary Match Stats ===');
+  console.log(`Total: ${stats.total}, Exact: ${stats.exact}, Case-insensitive: ${stats.caseInsensitive}, Accent-insensitive: ${stats.accentInsensitive}, Not found: ${stats.notFound}`);
+  if (stats.notFoundItems.length > 0) {
+    console.log('Not found items:', stats.notFoundItems);
+  }
+
+  return { words: result, stats };
 }
 
 /**
@@ -162,14 +322,38 @@ export function convertVocabularyToHighlightWords(
 export function addPositionsToExpressions(
   expressions: AnalyzedExpression[],
   content: string
-): AnalyzedExpression[] {
-  return expressions.map((expr) => {
-    const position = findFirstPosition(content, expr.foundForm);
+): { expressions: AnalyzedExpression[]; stats: MatchStats } {
+  const stats: MatchStats = {
+    total: 0,
+    exact: 0,
+    caseInsensitive: 0,
+    accentInsensitive: 0,
+    notFound: 0,
+    notFoundItems: [],
+  };
+
+  const result = expressions?.map((expr) => {
+    stats.total++;
+    const { position, matchType } = findPositionFlexible(content, expr.foundForm);
+    
+    if (matchType === 'exact') stats.exact++;
+    else if (matchType === 'case-insensitive') stats.caseInsensitive++;
+    else if (matchType === 'accent-insensitive') stats.accentInsensitive++;
+    else {
+      stats.notFound++;
+      stats.notFoundItems.push(`expr: ${expr.foundForm}`);
+    }
+    
     return {
       ...expr,
       position: position || undefined,
     };
-  });
+  }) || [];
+
+  console.log('=== Expression Match Stats ===');
+  console.log(`Total: ${stats.total}, Not found: ${stats.notFound}`);
+
+  return { expressions: result, stats };
 }
 
 /**
@@ -178,14 +362,50 @@ export function addPositionsToExpressions(
 export function addPositionsToGrammar(
   grammar: AnalyzedGrammar[],
   content: string
-): AnalyzedGrammar[] {
-  return grammar.map((gram) => {
-    const position = findFirstPosition(content, gram.foundText);
+): { grammar: AnalyzedGrammar[]; stats: MatchStats } {
+  const stats: MatchStats = {
+    total: 0,
+    exact: 0,
+    caseInsensitive: 0,
+    accentInsensitive: 0,
+    notFound: 0,
+    notFoundItems: [],
+  };
+
+  const result = grammar?.map((gram) => {
+    stats.total++;
+    const { position, matchType } = findPositionFlexible(content, gram.foundText);
+    
+    if (matchType === 'exact') stats.exact++;
+    else if (matchType === 'case-insensitive') stats.caseInsensitive++;
+    else if (matchType === 'accent-insensitive') stats.accentInsensitive++;
+    else {
+      stats.notFound++;
+      stats.notFoundItems.push(`grammar: ${gram.foundText}`);
+    }
+    
     return {
       ...gram,
       position: position || undefined,
     };
-  });
+  }) || [];
+
+  console.log('=== Grammar Match Stats ===');
+  console.log(`Total: ${stats.total}, Not found: ${stats.notFound}`);
+
+  return { grammar: result, stats };
+}
+
+/**
+ * 전체 매칭 통계
+ */
+export interface TotalMatchStats {
+  vocabulary: MatchStats;
+  expressions: MatchStats;
+  grammar: MatchStats;
+  totalItems: number;
+  totalMatched: number;
+  matchRate: number;
 }
 
 /**
@@ -201,18 +421,49 @@ export function processAnalysisResult(
   summary: AnalysisResult['summary'];
   keyPoints: string[];
   vocabulary: VocabularyByPOS;
+  stats: TotalMatchStats;
 } {
-  const words = convertVocabularyToHighlightWords(analysis.vocabulary, content);
-  const expressions = addPositionsToExpressions(analysis.expressions, content);
-  const grammar = addPositionsToGrammar(analysis.grammar, content);
+  const normalizedContent = normalizeText(content);
+  
+  const { words, stats: vocabStats } = convertVocabularyToHighlightWords(
+    analysis.vocabulary || { nouns: [], verbs: [], adjectives: [], adverbs: [], others: [] },
+    normalizedContent
+  );
+  const { expressions, stats: exprStats } = addPositionsToExpressions(
+    analysis.expressions || [],
+    normalizedContent
+  );
+  const { grammar, stats: grammarStats } = addPositionsToGrammar(
+    analysis.grammar || [],
+    normalizedContent
+  );
+
+  const totalItems = vocabStats.total + exprStats.total + grammarStats.total;
+  const totalMatched = 
+    (vocabStats.exact + vocabStats.caseInsensitive + vocabStats.accentInsensitive) +
+    (exprStats.exact + exprStats.caseInsensitive + exprStats.accentInsensitive) +
+    (grammarStats.exact + grammarStats.caseInsensitive + grammarStats.accentInsensitive);
+  
+  const stats: TotalMatchStats = {
+    vocabulary: vocabStats,
+    expressions: exprStats,
+    grammar: grammarStats,
+    totalItems,
+    totalMatched,
+    matchRate: totalItems > 0 ? Math.round((totalMatched / totalItems) * 100) : 0,
+  };
+
+  console.log('=== Total Match Stats ===');
+  console.log(`Total items: ${totalItems}, Matched: ${totalMatched}, Rate: ${stats.matchRate}%`);
 
   return {
     words,
     expressions,
     grammar,
-    summary: analysis.summary,
-    keyPoints: analysis.keyPoints,
-    vocabulary: analysis.vocabulary,
+    summary: analysis.summary || { topic: '', keyMessage: '' },
+    keyPoints: analysis.keyPoints || [],
+    vocabulary: analysis.vocabulary || { nouns: [], verbs: [], adjectives: [], adverbs: [], others: [] },
+    stats,
   };
 }
 
@@ -228,7 +479,7 @@ export function createUserHighlightWord(
   example: string,
   content: string
 ): HighlightWord | null {
-  const position = findFirstPosition(content, foundForm);
+  const { position } = findPositionFlexible(content, foundForm);
   if (!position) return null;
 
   return {

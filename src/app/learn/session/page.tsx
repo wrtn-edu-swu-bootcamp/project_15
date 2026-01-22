@@ -8,24 +8,36 @@ import {
   CEFRLevel, 
   AnalysisResult, 
   HighlightWord, 
+  AnalyzedExpression,
+  AnalyzedGrammar,
+  VocabularyByPOS,
   LEVEL_COLORS, 
   LEVEL_NAMES 
 } from '@/types';
-import { processAnalysisResult, createUserHighlightWord } from '@/lib/textUtils';
+import { processAnalysisResult, createUserHighlightWord, TotalMatchStats } from '@/lib/textUtils';
 
 interface SessionData {
   content: string;
   level: CEFRLevel;
   analysis: AnalysisResult;
+  processed?: {
+    words: HighlightWord[];
+    expressions: AnalyzedExpression[];
+    grammar: AnalyzedGrammar[];
+    summary: AnalysisResult['summary'];
+    keyPoints: string[];
+  };
+  stats?: TotalMatchStats;
 }
 
 interface ProcessedData {
   words: HighlightWord[];
-  expressions: AnalysisResult['expressions'];
-  grammar: AnalysisResult['grammar'];
+  expressions: AnalyzedExpression[];
+  grammar: AnalyzedGrammar[];
   summary: AnalysisResult['summary'];
   keyPoints: string[];
-  vocabulary: AnalysisResult['vocabulary'];
+  vocabulary: VocabularyByPOS;
+  stats: TotalMatchStats;
 }
 
 export default function LearnSessionPage() {
@@ -37,19 +49,37 @@ export default function LearnSessionPage() {
   const [levelFilter, setLevelFilter] = useState<CEFRLevel[]>(['A1', 'A2', 'B1', 'B2', 'C1', 'C2']);
   const [isHighlightMode, setIsHighlightMode] = useState(false);
   const [savedWords, setSavedWords] = useState<HighlightWord[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     // 세션 스토리지에서 분석 데이터 불러오기
     const data = sessionStorage.getItem('analysisData');
     if (data) {
-      const parsed = JSON.parse(data) as SessionData;
-      setSessionData(parsed);
-      
-      // 분석 결과 처리 (position 계산)
-      const processed = processAnalysisResult(parsed.analysis, parsed.content);
-      setProcessedData(processed);
+      try {
+        const parsed = JSON.parse(data) as SessionData;
+        setSessionData(parsed);
+        
+        // 서버에서 이미 처리된 데이터가 있으면 사용
+        if (parsed.processed && parsed.stats) {
+          setProcessedData({
+            words: parsed.processed.words || [],
+            expressions: parsed.processed.expressions || [],
+            grammar: parsed.processed.grammar || [],
+            summary: parsed.processed.summary || { topic: '', keyMessage: '' },
+            keyPoints: parsed.processed.keyPoints || [],
+            vocabulary: parsed.analysis?.vocabulary || { nouns: [], verbs: [], adjectives: [], adverbs: [], others: [] },
+            stats: parsed.stats,
+          });
+        } else {
+          // 클라이언트에서 처리
+          const processed = processAnalysisResult(parsed.analysis, parsed.content);
+          setProcessedData(processed);
+        }
+      } catch (error) {
+        console.error('Failed to parse session data:', error);
+        router.push('/');
+      }
     } else {
-      // 데이터가 없으면 홈으로 리다이렉트
       router.push('/');
     }
   }, [router]);
@@ -101,12 +131,12 @@ export default function LearnSessionPage() {
         
         // 사용자 추가 단어 생성
         const newWord = createUserHighlightWord(
-          data.word.word,
-          data.word.foundForm || selectedText,
-          data.word.meaning,
-          data.word.level,
-          data.word.partOfSpeech || 'n.',
-          data.word.example || '',
+          data.word?.word || selectedText,
+          data.word?.foundForm || selectedText,
+          data.word?.meaningKo || data.word?.meaning || '의미 분석 중',
+          data.word?.level || 'B1',
+          data.word?.partOfSpeech || 'n.',
+          data.word?.example || '',
           sessionData.content
         );
         
@@ -116,6 +146,8 @@ export default function LearnSessionPage() {
         } else {
           alert('텍스트에서 해당 단어를 찾을 수 없습니다.');
         }
+      } else {
+        alert('분석에 실패했습니다. 다시 시도해주세요.');
       }
     } catch (error) {
       console.error('Selection analysis error:', error);
@@ -127,7 +159,7 @@ export default function LearnSessionPage() {
 
   if (!sessionData || !processedData) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#FFFBF7' }}>
         <div className="text-center">
           <div className="animate-spin text-4xl mb-4">🍳</div>
           <p className="text-gray-600">요리 준비 중...</p>
@@ -137,13 +169,19 @@ export default function LearnSessionPage() {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen" style={{ backgroundColor: '#FFFBF7' }}>
       {/* 메인 콘텐츠 영역 */}
       <div className="flex-1 flex flex-col">
         {/* 상단 헤더 */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
+              <button
+                onClick={() => router.push('/')}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ← 홈
+              </button>
               <span className={`px-3 py-1 rounded-lg font-semibold ${LEVEL_COLORS[sessionData.level]}`}>
                 {sessionData.level} {LEVEL_NAMES[sessionData.level]}
               </span>
@@ -151,6 +189,16 @@ export default function LearnSessionPage() {
             </div>
             
             <div className="flex items-center gap-4">
+              {/* 디버그 토글 (개발용) */}
+              {process.env.NODE_ENV === 'development' && (
+                <button
+                  onClick={() => setShowDebug(!showDebug)}
+                  className="text-xs text-gray-400 hover:text-gray-600"
+                >
+                  {showDebug ? '디버그 숨기기' : '디버그'}
+                </button>
+              )}
+              
               {/* 재료 손질하기 토글 */}
               <button
                 onClick={() => setIsHighlightMode(!isHighlightMode)}
@@ -174,8 +222,28 @@ export default function LearnSessionPage() {
           </div>
         </div>
 
+        {/* 디버그 정보 */}
+        {showDebug && processedData.stats && (
+          <div className="bg-gray-900 text-green-400 px-6 py-3 text-xs font-mono overflow-x-auto">
+            <div className="flex gap-6">
+              <span>📊 매칭률: {processedData.stats.matchRate}%</span>
+              <span>총 항목: {processedData.stats.totalItems}</span>
+              <span>매칭 성공: {processedData.stats.totalMatched}</span>
+              <span>단어: {processedData.words.length}개</span>
+              <span>표현: {processedData.expressions.filter(e => e.position).length}개</span>
+              <span>문법: {processedData.grammar.filter(g => g.position).length}개</span>
+            </div>
+            {processedData.stats.vocabulary.notFoundItems.length > 0 && (
+              <div className="mt-2 text-yellow-400">
+                ⚠️ 매칭 실패: {processedData.stats.vocabulary.notFoundItems.slice(0, 5).join(', ')}
+                {processedData.stats.vocabulary.notFoundItems.length > 5 && ` 외 ${processedData.stats.vocabulary.notFoundItems.length - 5}개`}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 요약 및 핵심 포인트 */}
-        {processedData.summary && (
+        {processedData.summary && processedData.summary.topic && (
           <div className="bg-[#FDF5ED] px-6 py-4 border-b border-[#E5DDD4]">
             <div className="max-w-3xl mx-auto">
               <h2 className="font-bold text-[#6D5845] mb-2">📋 {processedData.summary.topic}</h2>
@@ -228,6 +296,27 @@ export default function LearnSessionPage() {
             </div>
           </div>
         )}
+
+        {/* 분석 결과 요약 바 */}
+        <div className="bg-white px-6 py-3 border-b border-gray-200">
+          <div className="max-w-3xl mx-auto flex items-center gap-6 text-sm">
+            <span className="text-gray-500">분석 결과:</span>
+            <span className="text-[#6D5845] font-medium">
+              📝 단어 {allWords.length}개
+            </span>
+            <span className="text-[#6D5845] font-medium">
+              💬 표현 {processedData.expressions.filter(e => e.position).length}개
+            </span>
+            <span className="text-[#6D5845] font-medium">
+              📖 문법 {processedData.grammar.filter(g => g.position).length}개
+            </span>
+            {processedData.stats && (
+              <span className="text-gray-400 text-xs ml-auto">
+                매칭률 {processedData.stats.matchRate}%
+              </span>
+            )}
+          </div>
+        </div>
 
         {/* 기사 본문 */}
         <div
