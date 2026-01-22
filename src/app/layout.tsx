@@ -16,8 +16,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
-      <body className="min-h-screen flex flex-col">
+    <html lang="ko" style={{ colorScheme: 'light' }}>
+      <body className="min-h-screen flex flex-col bg-[#FFFBF7] text-[#3D3228]">
         <AuthProvider>
           <Header />
           <main className="flex-1">

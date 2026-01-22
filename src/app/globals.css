@@ -29,16 +29,7 @@
   --border-dark: #C9BEB2;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #2A2520;
-    --background-warm: #332D27;
-    --foreground: #F5EDE5;
-    --foreground-muted: #B8A899;
-    --border: #4A423A;
-    --border-dark: #5C524A;
-  }
-}
+/* Dark mode disabled - always use light mode */
 
 * {
   box-sizing: border-box;
