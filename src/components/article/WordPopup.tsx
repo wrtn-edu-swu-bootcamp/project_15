@@ -12,11 +12,10 @@ interface HighlightItem {
 interface WordPopupProps {
   item: HighlightItem;
   position: { x: number; y: number };
-  onSave?: (word: HighlightWord) => void;
   onClose: () => void;
 }
 
-export default function WordPopup({ item, position, onSave, onClose }: WordPopupProps) {
+export default function WordPopup({ item, position, onClose }: WordPopupProps) {
   const data = item.data;
   const level = 'level' in data ? data.level : 'B1';
 
@@ -128,14 +127,11 @@ export default function WordPopup({ item, position, onSave, onClose }: WordPopup
       {item.type === 'expression' && renderExpressionContent()}
       {item.type === 'grammar' && renderGrammarContent()}
 
-      {/* 저장 버튼 (단어인 경우) */}
-      {item.type === 'word' && onSave && (
-        <button
-          onClick={() => onSave(data as HighlightWord)}
-          className="mt-4 w-full py-2 bg-[#6D5845]/10 text-[#6D5845] rounded-lg text-sm font-medium hover:bg-[#6D5845]/20 transition-colors"
-        >
-          + 🧊 냉장고에 보관
-        </button>
+      {/* 더블클릭 안내 (단어인 경우) */}
+      {item.type === 'word' && (
+        <div className="mt-3 pt-2 border-t border-gray-100 text-center">
+          <span className="text-xs text-gray-400">💡 더블클릭하여 냉장고에 저장</span>
+        </div>
       )}
     </div>
   );

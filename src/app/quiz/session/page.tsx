@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import QuizQuestion from '@/components/quiz/QuizQuestion';
 import { QuizQuestion as QuizQuestionType, SCORE_MESSAGES, LEVEL_COLORS, LEVEL_NAMES, CEFRLevel } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { saveQuizResult } from '@/lib/firestore';
 
 interface SessionData {
   content: string;
@@ -17,6 +19,7 @@ interface SessionData {
 
 export default function QuizSessionPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
   const [questions, setQuestions] = useState<QuizQuestionType[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -24,6 +27,8 @@ export default function QuizSessionPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCompleted, setIsCompleted] = useState(false);
   const [previousUsed, setPreviousUsed] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const hasSaved = useRef(false); // 중복 저장 방지
 
   useEffect(() => {
     const loadQuiz = async () => {
@@ -79,8 +84,48 @@ export default function QuizSessionPage() {
     }
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     setIsCompleted(true);
+
+    // 로그인한 사용자만 결과 저장
+    if (user && !hasSaved.current) {
+      hasSaved.current = true;
+      
+      try {
+        // 점수 계산
+        let correct = 0;
+        const details = questions.map((q) => {
+          const userAnswer = answers[q.id] || '';
+          const isCorrect = userAnswer.toLowerCase() === q.blank.toLowerCase();
+          if (isCorrect) correct++;
+          return {
+            questionId: q.id,
+            isCorrect,
+            userAnswer,
+            correctAnswer: q.blank,
+          };
+        });
+
+        const score = Math.round((correct / questions.length) * 100);
+
+        // Firestore에 저장
+        await saveQuizResult(
+          user.uid,
+          `session-${Date.now()}`, // 세션 기반 임시 ID
+          {
+            totalQuestions: questions.length,
+            correctAnswers: correct,
+            score,
+            details,
+          }
+        );
+
+        setIsSaved(true);
+        console.log('퀴즈 결과 저장 완료!');
+      } catch (error) {
+        console.error('퀴즈 결과 저장 에러:', error);
+      }
+    }
   };
 
   const calculateScore = () => {
@@ -145,6 +190,18 @@ export default function QuizSessionPage() {
                 <span className={`px-4 py-2 rounded-lg font-semibold ${LEVEL_COLORS[sessionData.level]}`}>
                   {sessionData.level} {LEVEL_NAMES[sessionData.level]}
                 </span>
+              </div>
+            )}
+
+            {/* 저장 완료 표시 */}
+            {user && isSaved && (
+              <div className="mt-4 text-sm text-green-600">
+                ✅ 결과가 마이페이지에 저장되었습니다!
+              </div>
+            )}
+            {!user && (
+              <div className="mt-4 text-sm text-gray-500">
+                💡 로그인하면 퀴즈 기록이 저장됩니다.
               </div>
             )}
           </div>

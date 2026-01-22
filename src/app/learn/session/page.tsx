@@ -15,6 +15,8 @@ import {
   LEVEL_NAMES 
 } from '@/types';
 import { processAnalysisResult, createUserHighlightWord, TotalMatchStats } from '@/lib/textUtils';
+import { useAuth } from '@/contexts/AuthContext';
+import { saveUserWord } from '@/lib/firestore';
 
 interface SessionData {
   content: string;
@@ -42,6 +44,7 @@ interface ProcessedData {
 
 export default function LearnSessionPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
   const [processedData, setProcessedData] = useState<ProcessedData | null>(null);
   const [userWords, setUserWords] = useState<HighlightWord[]>([]);
@@ -50,6 +53,7 @@ export default function LearnSessionPage() {
   const [isHighlightMode, setIsHighlightMode] = useState(false);
   const [savedWords, setSavedWords] = useState<HighlightWord[]>([]);
   const [showDebug, setShowDebug] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     // 세션 스토리지에서 분석 데이터 불러오기
@@ -90,14 +94,41 @@ export default function LearnSessionPage() {
     return [...processedData.words, ...userWords];
   }, [processedData, userWords]);
 
-  const handleSaveWord = (word: HighlightWord) => {
-    // 중복 체크
+  const handleSaveWord = async (word: HighlightWord) => {
+    // 로그인 체크
+    if (!user) {
+      alert('단어를 저장하려면 로그인이 필요합니다. 🔐');
+      return;
+    }
+
+    // 중복 체크 (로컬)
     if (savedWords.some((w) => w.word === word.word && w.foundForm === word.foundForm)) {
       alert('이미 저장된 단어입니다.');
       return;
     }
-    setSavedWords([...savedWords, word]);
-    alert(`"${word.word}"가 냉장고에 저장되었습니다! 🧊`);
+
+    setIsSaving(true);
+    try {
+      // Firestore에 저장
+      await saveUserWord({
+        userId: user.uid,
+        word: word.word,
+        meaning: word.meaning,
+        level: word.level,
+        partOfSpeech: word.partOfSpeech,
+        example: word.example,
+        isUserAdded: word.isUserAdded || false,
+      });
+
+      // 로컬 상태 업데이트
+      setSavedWords([...savedWords, word]);
+      alert(`"${word.word}"가 냉장고에 저장되었습니다! 🧊`);
+    } catch (error) {
+      console.error('단어 저장 에러:', error);
+      alert('저장에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleStartQuiz = () => {
@@ -267,6 +298,10 @@ export default function LearnSessionPage() {
             <span className="ml-4 text-gray-500">|</span>
             <span className="text-gray-500 ml-2">
               <span className="border border-dashed border-gray-400 px-1 rounded">점선</span> = 사용자 추가
+            </span>
+            <span className="text-gray-500">|</span>
+            <span className="text-[#6D5845] font-medium">
+              🧊 더블클릭 = 냉장고 저장
             </span>
           </div>
         </div>

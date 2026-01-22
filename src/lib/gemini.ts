@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-export const geminiModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+export const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 // 기사 분석 프롬프트 - foundForm 정확성 강화
 export function getAnalysisPrompt(content: string, targetLevel: string) {
@@ -63,7 +63,7 @@ ${targetLevel}
         "gender": "m 또는 f",
         "meaning": "한국어 뜻",
         "level": "A1-C2 중 하나",
-        "example": "텍스트에서 해당 단어가 포함된 문장"
+        "example": "이 단어를 사용한 간단하고 실용적인 예문 (학습자가 이해하기 쉬운 새 문장 생성)"
       }
     ],
     "verbs": [
@@ -73,7 +73,7 @@ ${targetLevel}
         "meaning": "한국어 뜻",
         "level": "A1-C2 중 하나",
         "tense": "사용된 시제",
-        "example": "텍스트에서 해당 동사가 포함된 문장"
+        "example": "이 동사를 사용한 간단하고 실용적인 예문 (학습자가 이해하기 쉬운 새 문장 생성)"
       }
     ],
     "adjectives": [
@@ -82,7 +82,7 @@ ${targetLevel}
         "foundForm": "텍스트에서 복사한 형태 (성수 일치된 형태)",
         "meaning": "한국어 뜻",
         "level": "A1-C2 중 하나",
-        "example": "텍스트에서 해당 형용사가 포함된 문장"
+        "example": "이 형용사를 사용한 간단하고 실용적인 예문 (학습자가 이해하기 쉬운 새 문장 생성)"
       }
     ],
     "adverbs": [
@@ -91,7 +91,7 @@ ${targetLevel}
         "foundForm": "텍스트에서 복사한 형태",
         "meaning": "한국어 뜻",
         "level": "A1-C2 중 하나",
-        "example": "텍스트에서 해당 부사가 포함된 문장"
+        "example": "이 부사를 사용한 간단하고 실용적인 예문 (학습자가 이해하기 쉬운 새 문장 생성)"
       }
     ],
     "others": [
@@ -101,7 +101,7 @@ ${targetLevel}
         "partOfSpeech": "품사 (전치사/접속사/대명사 등)",
         "meaning": "한국어 뜻",
         "level": "A1-C2 중 하나",
-        "example": "텍스트에서 해당 단어가 포함된 문장"
+        "example": "이 단어를 사용한 간단하고 실용적인 예문 (학습자가 이해하기 쉬운 새 문장 생성)"
       }
     ]
   },
@@ -112,7 +112,7 @@ ${targetLevel}
       "meaning": "한국어 뜻",
       "level": "A1-C2 중 하나",
       "usage": "사용 맥락 설명",
-      "example": "텍스트에서 해당 표현이 포함된 문장"
+      "example": "이 표현을 사용한 간단하고 실용적인 예문 (학습자가 이해하기 쉬운 새 문장 생성)"
     }
   ],
   "grammar": [
@@ -130,6 +130,13 @@ ${targetLevel}
     "${targetLevel} 급수 학습자가 특히 주목해야 할 포인트 2"
   ]
 }
+
+## 예문(example) 생성 지침
+- example 필드는 텍스트에서 가져오지 말고, **새롭게 생성**하세요
+- 학습자 급수(${targetLevel})에 맞는 난이도의 간단하고 실용적인 문장을 만드세요
+- 일상생활에서 자주 쓰이는 맥락으로 작성하세요
+- 해당 단어/표현의 용법을 잘 보여주는 문장이어야 합니다
+- 10-20단어 내외의 짧고 명확한 문장으로 작성하세요
 
 ## 최종 점검
 응답하기 전에 각 foundForm이 입력 텍스트에 **정확히 존재하는지** 확인하세요.

@@ -117,6 +117,13 @@ export default function HighlightedText({
     setHoveredItem(null);
   };
 
+  // 더블클릭으로 단어 저장
+  const handleDoubleClick = (item: HighlightItem) => {
+    if (item.type === 'word' && onSaveWord) {
+      onSaveWord(item.data as HighlightWord);
+    }
+  };
+
   // 텍스트를 하이라이트된 부분으로 분할
   const renderContent = () => {
     const result: React.ReactNode[] = [];
@@ -144,6 +151,8 @@ export default function HighlightedText({
           }`}
           onMouseEnter={(e) => handleMouseEnter(item, e)}
           onMouseLeave={handleMouseLeave}
+          onDoubleClick={() => handleDoubleClick(item)}
+          title={item.type === 'word' ? '더블클릭하여 냉장고에 저장' : ''}
         >
           {content.substring(item.start, item.end)}
         </span>
@@ -173,7 +182,6 @@ export default function HighlightedText({
         <WordPopup
           item={hoveredItem}
           position={popupPosition}
-          onSave={onSaveWord}
           onClose={() => setHoveredItem(null)}
         />
       )}
