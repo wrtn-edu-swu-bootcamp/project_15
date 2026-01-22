@@ -25,12 +25,6 @@ export default function Header() {
               홈
             </Link>
             <Link 
-              href="/articles" 
-              className="text-gray-600 hover:text-[#6D5845] transition-colors"
-            >
-              재료 둘러보기
-            </Link>
-            <Link 
               href="/guide" 
               className="text-gray-600 hover:text-[#6D5845] transition-colors"
             >

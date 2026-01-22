@@ -10,7 +10,7 @@ export default function Home() {
   const router = useRouter();
 
   const handleLevelSelect = (level: CEFRLevel) => {
-    router.push(`/learn?level=${level}`);
+    router.push(`/paste?level=${level}`);
   };
 
   return (
