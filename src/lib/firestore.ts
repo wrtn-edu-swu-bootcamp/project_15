@@ -113,9 +113,11 @@ export async function saveAnalysisResult(articleId: string, level: CEFRLevel, re
   const analysisRef = collection(db, 'articles', articleId, 'analysisResults');
   const docRef = await addDoc(analysisRef, {
     level,
-    words: result.words,
+    summary: result.summary,
+    vocabulary: result.vocabulary,
     expressions: result.expressions,
     grammar: result.grammar,
+    keyPoints: result.keyPoints,
     createdAt: Timestamp.now(),
   });
   return docRef.id;
@@ -133,9 +135,11 @@ export async function getAnalysisResult(articleId: string, level: CEFRLevel): Pr
   
   const data = querySnapshot.docs[0].data();
   return {
-    words: data.words,
+    summary: data.summary,
+    vocabulary: data.vocabulary,
     expressions: data.expressions,
     grammar: data.grammar,
+    keyPoints: data.keyPoints,
   };
 }
 
